@@ -22,6 +22,10 @@
 
 ![AutoSavingAlarm 设置窗口预览](assets/readme/settings-window.png)
 
+到点后会弹出右下角提醒窗：
+
+![AutoSavingAlarm 提醒窗口预览](assets/readme/reminder-window.png)
+
 ## 它解决的是什么问题
 
 很多工具并不会帮你自动兜底，尤其是下面这些场景：
