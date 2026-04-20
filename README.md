@@ -4,57 +4,46 @@
 
 ### 固定周期提醒你保存工作的 Windows 托盘小工具
 
-很多时候，真正让人崩溃的不是软件闪退，而是你已经做了半小时，结果忘了按一次 `Ctrl + S`。
-
-`AutoSaving Alarm` 不接管你的编辑器，不绑定某个特定软件，也不做复杂自动同步。  
+不接管编辑器，不绑定特定软件，也不做复杂自动同步。  
 它只做一件事：在你最容易忘记保存的时候，稳定地提醒你一下。
 
 [![Release](https://img.shields.io/github/v/release/zhujiu39/alarm-autosave?color=0969da&label=Release)](https://github.com/zhujiu39/alarm-autosave/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/zhujiu39/alarm-autosave?color=2da44e&label=Last%20Commit)](https://github.com/zhujiu39/alarm-autosave/commits/main)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4)](https://github.com/zhujiu39/alarm-autosave)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![License](https://img.shields.io/badge/License-Non--Commercial-orange)](LICENSE)
 
 [下载 Release](https://github.com/zhujiu39/alarm-autosave/releases) |
+[版本选择](#-下载与版本选择) |
 [快速开始](#-快速开始) |
-[下载说明](#-下载说明) |
-[faq](#-faq) |
+[FAQ](#-faq) |
 [本地开发](#-本地开发)
 
 </div>
 
-## ✨ 为什么做这个
+> [!TIP]
+> 如果你只是想直接用，不想研究 .NET 运行时，直接下载 `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip`。
 
-很多工具并不会自动替你兜底，尤其是这些场景：
+## ✨ 一眼看懂
 
-- 临时草稿
-- 本地脚本
-- 原型设计
-- 笔记整理
-- 没有自动保存的软件或文件
+| 这个工具解决什么问题 | 它怎么工作 | 最适合谁 |
+| --- | --- | --- |
+| 你明明有手动保存习惯，但一专注就忘了按 `Ctrl + S` | 以固定周期提醒你保存，而不是每次确认后重新倒计时 | 写文档、写脚本、做设计、整理笔记时依赖手动保存的人 |
 
-你明明有“手动保存”的习惯，但一旦进入专注状态，就很容易忽略掉这一步。
+很多时候，真正让人崩溃的不是软件闪退，而是你已经做了二十分钟，结果忘了按一次 `Ctrl + S`。
 
-`AutoSaving Alarm` 的目标很明确：
+`AutoSaving Alarm` 针对的就是这种场景：
 
 - 常驻托盘，不打断主工作流
 - 到点提醒，但不过度骚扰
 - 保持固定节奏，而不是每次确认后重新倒计时
-
-## 🚀 3 秒看懂
-
-- 这是一个 `Windows` 托盘小工具
-- 它会按固定间隔提醒你保存
-- 你点“我刚保存了”后，只结束本次提醒，不会把整个提醒节奏往后推
-
-如果你不想研究细节，直接下载：
-
-- `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip`
 
 ## 🖼️ 界面预览
 
 | 设置窗口 | 到点提醒 |
 | --- | --- |
 | ![AutoSavingAlarm 设置窗口预览](assets/readme/settings-window.png) | ![AutoSavingAlarm 提醒窗口预览](assets/readme/reminder-window.png) |
+| 首次启动时配置提醒间隔、恢复策略和开机启动 | 到点后通过提醒窗提示你处理当前周期 |
 
 ## 🔥 核心特性
 
@@ -76,7 +65,7 @@
 - **单实例保护**
   - 避免多个托盘进程重复运行
 
-## 🧠 和普通倒计时提醒器有什么区别
+## 🧠 为什么它不是普通倒计时提醒器
 
 普通提醒器常见逻辑是：
 
@@ -85,9 +74,9 @@
 
 `AutoSaving Alarm` 不是这样。
 
-它采用的是“固定周期提醒”。
+它采用的是**固定周期提醒**。
 
-举例：
+例如：
 
 - 你把提醒间隔设为 `15` 分钟
 - 你在 `10:00` 开始
@@ -97,7 +86,7 @@
 
 这就是它最核心的设计点：**提醒节奏稳定、可预期。**
 
-## 📦 下载说明
+## 📦 下载与版本选择
 
 Release 页面：
 
@@ -105,24 +94,22 @@ Release 页面：
 
 当前提供两个版本：
 
-| 文件名 | 适合谁 | 说明 |
+| 你的情况 | 建议下载 | 说明 |
 | --- | --- | --- |
-| `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip` | 普通用户 | 自带 Runtime，下载后直接运行，体积较大 |
-| `AutoSavingAlarm-v1.0.0-runtime-dependent-win-x64.zip` | 已装 .NET 的机器 | 不自带 Runtime，体积较小，要求本机已安装 `.NET 10 Windows Desktop Runtime` |
-
-如果你不确定该下哪个，直接选：
-
-- `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip`
+| 我只想下载后直接运行 | `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip` | 自带 Runtime，最省事，体积较大 |
+| 我已经装过 `.NET 10 Windows Desktop Runtime` | `AutoSavingAlarm-v1.0.0-runtime-dependent-win-x64.zip` | 不自带 Runtime，体积较小 |
+| 我不确定自己有没有装运行时 | `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip` | 这是默认推荐版本 |
 
 ## ⚡ 快速开始
 
-### 首次使用
+### 第一次使用
 
-1. 下载并启动程序
-2. 设定提醒间隔
-3. 选择是否开机启动
-4. 选择恢复策略
-5. 保存设置
+1. 从 Releases 下载合适的版本
+2. 启动程序
+3. 设置提醒间隔
+4. 选择是否开机启动
+5. 选择恢复策略
+6. 保存设置
 
 如果本地还没有配置，程序会自动打开设置窗口。
 
@@ -138,22 +125,26 @@ Release 页面：
   - 暂停后续提醒
   - 直到你手动恢复
 
-### 恢复策略
+### 恢复策略说明
 
-- `恢复即重置`
-  - 恢复提醒时，从当前时刻重新开始计时
-- `沿用旧锚点`
-  - 恢复提醒时，继续沿用之前的周期节奏
+| 策略 | 含义 |
+| --- | --- |
+| `恢复即重置` | 恢复提醒时，从当前时刻重新开始计时 |
+| `沿用旧锚点` | 恢复提醒时，继续沿用之前的周期节奏 |
 
-## 📋 适合谁
+## 🎯 适用场景
 
-- 经常写文档、写脚本、记笔记，但依赖手动保存的人
-- 经常进入专注状态，容易忘记保存的人
-- 不想装复杂同步工具，只想要一个简单提醒器的人
+这个工具尤其适合下面这些使用习惯：
+
+- 写文档、写周报、整理笔记时依赖手动保存
+- 写脚本、改配置、做原型时没有自动保存兜底
+- 长时间专注工作，容易忽略保存动作
+- 不想装复杂同步工具，只想要一个稳定提醒器
 
 ## ❓ FAQ
 
-### 为什么发布包这么大？
+<details>
+<summary><strong>为什么发布包这么大？</strong></summary>
 
 因为 Release 同时提供了一个“自带 Runtime”的版本。
 
@@ -161,39 +152,77 @@ Release 页面：
 
 - 下载后直接运行
 - 不要求用户自己安装依赖
+- 更适合普通用户直接使用
 
-代价就是体积会明显更大。
+代价就是体积会明显更大。  
+如果你更在意体积，可以改用 `runtime-dependent` 版本。
 
-### 两个版本怎么选？
+</details>
 
-直接按这个规则选：
+<details>
+<summary><strong>两个版本到底怎么选？</strong></summary>
+
+最简单的判断方式：
 
 - 想省事：下载 `self-contained`
 - 知道自己机器已经装了 `.NET 10 Windows Desktop Runtime`：下载 `runtime-dependent`
 
-如果你不确定，就下自带 Runtime 的版本。
+如果你不能确定，就默认下载自带 Runtime 的版本。
 
-### 这个工具会自动帮我保存文件吗？
+</details>
+
+<details>
+<summary><strong>这个工具会自动帮我保存文件吗？</strong></summary>
 
 不会。
 
-它的职责是提醒你保存，而不是接管你的软件行为。这样做的好处是简单、稳定、兼容场景多，不需要适配具体编辑器。
+它的职责是提醒你保存，而不是接管你的软件行为。  
+这样做的好处是简单、稳定、兼容场景多，不需要适配具体编辑器，也不会误操作你的文件。
 
-### 它支持 macOS 或 Linux 吗？
+</details>
 
-当前不支持。
+<details>
+<summary><strong>它和普通倒计时提醒器最大的区别是什么？</strong></summary>
 
-目前版本只支持 `Windows`。
+最大的区别是：**它保持固定节奏**。
 
-## ⚙️ 配置文件
+普通倒计时提醒器通常在你每次确认后重新计时；`AutoSaving Alarm` 不会这样做。  
+你确认“我刚保存了”后，只结束当前提醒，不改变下一次提醒的预定时间。
 
-配置文件默认保存在：
+</details>
+
+<details>
+<summary><strong>关闭提醒窗会退出程序吗？</strong></summary>
+
+不会。
+
+程序的常驻入口在系统托盘。  
+提醒窗只是当前周期的提醒界面，不是整个应用的主窗口。真正退出需要从托盘菜单里执行。
+
+</details>
+
+<details>
+<summary><strong>支持开机自启动吗？需要管理员权限吗？</strong></summary>
+
+支持。
+
+当前版本使用当前用户注册表启动项：
+
+- 路径：`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+- 不要求管理员权限
+
+</details>
+
+<details>
+<summary><strong>配置文件存在哪里？</strong></summary>
+
+默认保存在：
 
 ```text
 %AppData%\AutoSavingAlarm\settings.json
 ```
 
-配置内容包括：
+其中会记录：
 
 - 提醒间隔
 - 是否开机自启动
@@ -201,6 +230,16 @@ Release 页面：
 - 锚点时间
 - 上次确认已保存时间
 - 恢复策略
+
+</details>
+
+<details>
+<summary><strong>支持 macOS 或 Linux 吗？</strong></summary>
+
+当前不支持。  
+目前版本只支持 `Windows`。
+
+</details>
 
 ## 🧩 技术实现
 
