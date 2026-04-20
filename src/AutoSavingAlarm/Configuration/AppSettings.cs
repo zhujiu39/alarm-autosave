@@ -55,6 +55,11 @@ internal sealed class AppSettings
             sanitized.LastAcknowledgedAtUtc = null;
         }
 
+        if (!Enum.IsDefined(sanitized.ResumePolicy))
+        {
+            sanitized.ResumePolicy = ResumePolicy.ResetOnResume;
+        }
+
         return sanitized;
     }
 }
