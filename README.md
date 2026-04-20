@@ -1,50 +1,82 @@
+<div align="center">
+
 # AutoSaving Alarm
 
-一个面向 Windows 的托盘常驻小工具，用固定节奏提醒你保存当前工作。
+### 固定周期提醒你保存工作的 Windows 托盘小工具
 
-很多时候，真正让人崩溃的不是软件崩掉，而是你明明已经做了二十分钟，结果忘了按一次 `Ctrl + S`。
+很多时候，真正让人崩溃的不是软件闪退，而是你已经做了半小时，结果忘了按一次 `Ctrl + S`。
 
-`AutoSaving Alarm` 不接管你的编辑器，不绑定某个特定软件，也不做复杂自动同步。它只做一件事：在你最容易忘记保存的时候，稳定地提醒你一下。
+`AutoSaving Alarm` 不接管你的编辑器，不绑定某个特定软件，也不做复杂自动同步。  
+它只做一件事：在你最容易忘记保存的时候，稳定地提醒你一下。
 
-## 3 秒看懂
+[![Release](https://img.shields.io/github/v/release/zhujiu39/alarm-autosave?color=0969da&label=Release)](https://github.com/zhujiu39/alarm-autosave/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4)](https://github.com/zhujiu39/alarm-autosave)
+[![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![License](https://img.shields.io/badge/License-Non--Commercial-orange)](LICENSE)
 
-- 这是一个 `Windows` 托盘小工具
-- 它会按固定间隔提醒你保存
-- 你点“我刚保存了”后，只结束本次提醒，不会把整个提醒节奏往后推
+[下载 Release](https://github.com/zhujiu39/alarm-autosave/releases) |
+[快速开始](#-快速开始) |
+[下载说明](#-下载说明) |
+[faq](#-faq) |
+[本地开发](#-本地开发)
 
-如果你不想研究细节，直接去 Releases 下载 `自带 Runtime` 的版本即可：
+</div>
 
-[下载 Release](https://github.com/zhujiu39/alarm-autosave/releases)
+## ✨ 为什么做这个
 
-## 界面预览
-
-首次启动时会打开设置窗口：
-
-![AutoSavingAlarm 设置窗口预览](assets/readme/settings-window.png)
-
-到点后会弹出右下角提醒窗：
-
-![AutoSavingAlarm 提醒窗口预览](assets/readme/reminder-window.png)
-
-## 它解决的是什么问题
-
-很多工具并不会帮你自动兜底，尤其是下面这些场景：
+很多工具并不会自动替你兜底，尤其是这些场景：
 
 - 临时草稿
 - 本地脚本
 - 原型设计
 - 笔记整理
-- 非自动保存的软件或文件
+- 没有自动保存的软件或文件
 
-你明明有“手动保存”的习惯，但一旦进入专注状态，就会自然忽略掉这一步。
+你明明有“手动保存”的习惯，但一旦进入专注状态，就很容易忽略掉这一步。
 
-这个工具就是为这种情况准备的：
+`AutoSaving Alarm` 的目标很明确：
 
 - 常驻托盘，不打断主工作流
 - 到点提醒，但不过度骚扰
 - 保持固定节奏，而不是每次确认后重新倒计时
 
-## 为什么和普通倒计时提醒器不一样
+## 🚀 3 秒看懂
+
+- 这是一个 `Windows` 托盘小工具
+- 它会按固定间隔提醒你保存
+- 你点“我刚保存了”后，只结束本次提醒，不会把整个提醒节奏往后推
+
+如果你不想研究细节，直接下载：
+
+- `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip`
+
+## 🖼️ 界面预览
+
+| 设置窗口 | 到点提醒 |
+| --- | --- |
+| ![AutoSavingAlarm 设置窗口预览](assets/readme/settings-window.png) | ![AutoSavingAlarm 提醒窗口预览](assets/readme/reminder-window.png) |
+
+## 🔥 核心特性
+
+- **固定周期提醒**
+  - 以“开始计时”或“应用新配置”的时刻作为锚点
+  - 点击“我刚保存了”不会把整个提醒周期往后推
+- **托盘常驻**
+  - 默认运行在系统托盘
+  - 双击托盘图标可打开设置
+  - 托盘菜单支持恢复、暂停、确认已保存、设置和退出
+- **双通道提醒**
+  - 托盘气泡通知
+  - 右下角置顶提醒窗
+- **本地持久化**
+  - 自动保存提醒间隔、恢复策略、暂停状态、开机启动等设置
+- **开机自启动**
+  - 使用当前用户注册表启动项
+  - 不要求管理员权限
+- **单实例保护**
+  - 避免多个托盘进程重复运行
+
+## 🧠 和普通倒计时提醒器有什么区别
 
 普通提醒器常见逻辑是：
 
@@ -61,11 +93,11 @@
 - 你在 `10:00` 开始
 - 那么提醒点就是 `10:15`、`10:30`、`10:45`、`11:00`
 
-如果你在 `10:17` 点击“我刚保存了”，本次提醒会结束，但下一次依然是 `10:30`，不会顺延到 `10:32`。
+如果你在 `10:17` 点击了“我刚保存了”，本次提醒会结束，但下一次依然是 `10:30`，不会顺延到 `10:32`。
 
-这就是它最核心的设计点：提醒节奏稳定、可预期。
+这就是它最核心的设计点：**提醒节奏稳定、可预期。**
 
-## 下载说明
+## 📦 下载说明
 
 Release 页面：
 
@@ -78,11 +110,11 @@ Release 页面：
 | `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip` | 普通用户 | 自带 Runtime，下载后直接运行，体积较大 |
 | `AutoSavingAlarm-v1.0.0-runtime-dependent-win-x64.zip` | 已装 .NET 的机器 | 不自带 Runtime，体积较小，要求本机已安装 `.NET 10 Windows Desktop Runtime` |
 
-如果你不确定下哪个，直接选：
+如果你不确定该下哪个，直接选：
 
 - `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip`
 
-## 快速开始
+## ⚡ 快速开始
 
 ### 首次使用
 
@@ -106,29 +138,20 @@ Release 页面：
   - 暂停后续提醒
   - 直到你手动恢复
 
-## 核心特性
+### 恢复策略
 
-- 固定周期提醒
-  - 以“开始计时”或“应用新配置”的时刻作为锚点
-- 托盘常驻
-  - 双击托盘图标可打开设置
-- 双通道提醒
-  - 托盘气泡通知 + 右下角提醒窗
-- 本地持久化
-  - 自动保存提醒间隔、恢复策略、暂停状态、开机启动等设置
-- 开机自启动
-  - 使用当前用户注册表启动项
-  - 不要求管理员权限
-- 单实例保护
-  - 避免多个托盘进程重复运行
+- `恢复即重置`
+  - 恢复提醒时，从当前时刻重新开始计时
+- `沿用旧锚点`
+  - 恢复提醒时，继续沿用之前的周期节奏
 
-## 适合谁
+## 📋 适合谁
 
 - 经常写文档、写脚本、记笔记，但依赖手动保存的人
 - 经常进入专注状态，容易忘记保存的人
 - 不想装复杂同步工具，只想要一个简单提醒器的人
 
-## FAQ
+## ❓ FAQ
 
 ### 为什么发布包这么大？
 
@@ -162,7 +185,7 @@ Release 页面：
 
 目前版本只支持 `Windows`。
 
-## 配置文件
+## ⚙️ 配置文件
 
 配置文件默认保存在：
 
@@ -179,7 +202,7 @@ Release 页面：
 - 上次确认已保存时间
 - 恢复策略
 
-## 技术实现
+## 🧩 技术实现
 
 核心模块包括：
 
@@ -196,7 +219,7 @@ Release 页面：
 - `SettingsForm`
   - 负责提醒间隔、恢复策略、自启动等设置
 
-## 项目结构
+## 🗂️ 项目结构
 
 ```text
 alarm-autosave/
@@ -212,7 +235,7 @@ alarm-autosave/
 └─ LICENSE
 ```
 
-## 本地开发
+## 🛠️ 本地开发
 
 环境要求：
 
@@ -237,7 +260,7 @@ dotnet publish .\src\AutoSavingAlarm\AutoSavingAlarm.csproj -c Release -o .\arti
 dotnet publish .\src\AutoSavingAlarm\AutoSavingAlarm.csproj -c Release -p:RuntimeIdentifier=win-x64 -p:SelfContained=false -p:PublishSingleFile=true -o .\artifacts\publish-fd-single-explicit
 ```
 
-## 已知边界
+## 🚧 已知边界
 
 - 当前仅支持 Windows
 - 当前不监听“你是不是真的保存了文件”
@@ -245,7 +268,7 @@ dotnet publish .\src\AutoSavingAlarm\AutoSavingAlarm.csproj -c Release -p:Runtim
 - 当前不支持 Linux
 - 当前不提供云同步、声音提醒、全局快捷键
 
-## 许可证
+## 📄 许可证
 
 本项目采用自定义非商用许可证：
 
