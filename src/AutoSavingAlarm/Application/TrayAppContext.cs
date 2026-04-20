@@ -275,6 +275,7 @@ internal sealed class TrayAppContext : ApplicationContext
         DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
         bool intervalChanged = requestedSettings.IntervalMinutes != _settings.IntervalMinutes;
         bool wasPaused = _settings.IsPaused;
+        bool previousStartWithWindows = _settings.StartWithWindows;
 
         AppSettings updatedSettings = _settings.Clone();
         updatedSettings.IntervalMinutes = requestedSettings.IntervalMinutes;
@@ -305,6 +306,7 @@ internal sealed class TrayAppContext : ApplicationContext
         }
         catch (Exception exception)
         {
+            _settings.StartWithWindows = previousStartWithWindows;
             MessageBox.Show(
                 $"更新开机自启动失败：{exception.Message}",
                 "AutoSavingAlarm",
