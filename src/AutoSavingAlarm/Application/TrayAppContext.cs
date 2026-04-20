@@ -320,6 +320,11 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private void TrySyncAutostartWithSettings()
     {
+        if (!_hasSavedConfig)
+        {
+            return;
+        }
+
         try
         {
             bool registryEnabled = _autostartService.IsEnabled();
