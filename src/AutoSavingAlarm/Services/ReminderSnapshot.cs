@@ -11,4 +11,7 @@ internal sealed record ReminderSnapshot(
     ReminderState State,
     bool ReminderTriggered,
     DateTimeOffset? CurrentReminderDueUtc,
-    DateTimeOffset? NextReminderUtc);
+    DateTimeOffset? NextReminderUtc,
+    int OverdueCycles,
+    int EscalationLevel,
+    bool EscalationAdvanced);

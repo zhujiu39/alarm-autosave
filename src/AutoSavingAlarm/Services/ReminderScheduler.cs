@@ -4,8 +4,11 @@ namespace AutoSavingAlarm.Services;
 
 internal sealed class ReminderScheduler
 {
+    private const int MaximumEscalationLevel = 3;
+
     private readonly AppSettings _settings;
-    private DateTimeOffset? _currentReminderDueUtc;
+    private bool _wasReminderActive;
+    private int _lastEscalationLevel;
 
     public ReminderScheduler(AppSettings settings)
     {
@@ -18,26 +21,38 @@ internal sealed class ReminderScheduler
     {
         if (_settings.IsPaused)
         {
-            _currentReminderDueUtc = null;
-            return new ReminderSnapshot(ReminderState.Paused, false, null, null);
+            ResetRuntimeState();
+            return new ReminderSnapshot(ReminderState.Paused, false, null, null, 0, 0, false);
         }
 
-        if (_currentReminderDueUtc.HasValue)
+        TimeSpan interval = GetInterval();
+        int completedCycleCount = GetCompletedCycleCount(nowUtc, interval);
+        DateTimeOffset nextReminderUtc = GetNextReminderUtc(interval, completedCycleCount);
+        int acknowledgedCycleCount = GetAcknowledgedCycleCount(interval, completedCycleCount);
+        int overdueCycles = Math.Max(0, completedCycleCount - acknowledgedCycleCount);
+
+        if (overdueCycles <= 0)
         {
-            return CreateSnapshot(ReminderState.Reminder, false, _currentReminderDueUtc.Value, nowUtc);
+            ResetRuntimeState();
+            return new ReminderSnapshot(ReminderState.Normal, false, null, nextReminderUtc, 0, 0, false);
         }
 
-        DateTimeOffset? latestDueUtc = GetLatestDueOnOrBefore(nowUtc);
-        DateTimeOffset? acknowledgedUtc = GetEffectiveAcknowledgedTimeUtc();
+        int escalationLevel = Math.Min(overdueCycles, MaximumEscalationLevel);
+        bool reminderTriggered = !_wasReminderActive;
+        bool escalationAdvanced = _wasReminderActive && escalationLevel > _lastEscalationLevel;
+        DateTimeOffset currentReminderDueUtc = _settings.AnchorTimeUtc.AddTicks(completedCycleCount * interval.Ticks);
 
-        if (latestDueUtc.HasValue &&
-            (!acknowledgedUtc.HasValue || acknowledgedUtc.Value < latestDueUtc.Value))
-        {
-            _currentReminderDueUtc = latestDueUtc;
-            return CreateSnapshot(ReminderState.Reminder, true, _currentReminderDueUtc.Value, nowUtc);
-        }
+        _wasReminderActive = true;
+        _lastEscalationLevel = escalationLevel;
 
-        return CreateSnapshot(ReminderState.Normal, false, null, nowUtc);
+        return new ReminderSnapshot(
+            ReminderState.Reminder,
+            reminderTriggered,
+            currentReminderDueUtc,
+            nextReminderUtc,
+            overdueCycles,
+            escalationLevel,
+            escalationAdvanced);
     }
 
     public void ResetAnchor(DateTimeOffset nowUtc)
@@ -45,13 +60,13 @@ internal sealed class ReminderScheduler
         _settings.IsPaused = false;
         _settings.AnchorTimeUtc = nowUtc;
         _settings.LastAcknowledgedAtUtc = null;
-        _currentReminderDueUtc = null;
+        ResetRuntimeState();
     }
 
     public void Pause()
     {
         _settings.IsPaused = true;
-        _currentReminderDueUtc = null;
+        ResetRuntimeState();
     }
 
     public void Resume(DateTimeOffset nowUtc)
@@ -61,79 +76,65 @@ internal sealed class ReminderScheduler
         if (_settings.ResumePolicy == ResumePolicy.ResetOnResume)
         {
             ResetAnchor(nowUtc);
+            return;
         }
 
-        _currentReminderDueUtc = null;
+        ResetRuntimeState();
     }
 
     public void Acknowledge(DateTimeOffset nowUtc)
     {
+        if (_settings.AcknowledgeResetsCycle)
+        {
+            _settings.AnchorTimeUtc = nowUtc;
+        }
+
         _settings.LastAcknowledgedAtUtc = nowUtc;
-        _currentReminderDueUtc = null;
+        ResetRuntimeState();
     }
 
-    private ReminderSnapshot CreateSnapshot(
-        ReminderState state,
-        bool reminderTriggered,
-        DateTimeOffset? currentReminderDueUtc,
-        DateTimeOffset nowUtc)
-    {
-        return new ReminderSnapshot(
-            state,
-            reminderTriggered,
-            currentReminderDueUtc,
-            GetFirstDueAfter(nowUtc));
-    }
-
-    private DateTimeOffset? GetEffectiveAcknowledgedTimeUtc()
+    private int GetAcknowledgedCycleCount(TimeSpan interval, int completedCycleCount)
     {
         if (!_settings.LastAcknowledgedAtUtc.HasValue)
         {
-            return null;
+            return 0;
         }
 
         if (_settings.LastAcknowledgedAtUtc.Value <= _settings.AnchorTimeUtc)
         {
-            return null;
+            return 0;
         }
 
-        return _settings.LastAcknowledgedAtUtc.Value;
+        long elapsedTicks = (_settings.LastAcknowledgedAtUtc.Value - _settings.AnchorTimeUtc).Ticks;
+        int acknowledgedCycleCount = (int)(elapsedTicks / interval.Ticks);
+        return Math.Min(Math.Max(0, acknowledgedCycleCount), completedCycleCount);
     }
 
-    private DateTimeOffset? GetLatestDueOnOrBefore(DateTimeOffset nowUtc)
+    private int GetCompletedCycleCount(DateTimeOffset nowUtc, TimeSpan interval)
     {
-        TimeSpan interval = GetInterval();
-        DateTimeOffset firstDueUtc = _settings.AnchorTimeUtc.Add(interval);
-
-        if (nowUtc < firstDueUtc)
+        if (nowUtc <= _settings.AnchorTimeUtc)
         {
-            return null;
+            return 0;
         }
 
-        long elapsedTicks = (nowUtc - firstDueUtc).Ticks;
-        long intervalsPassed = elapsedTicks / interval.Ticks;
-
-        return firstDueUtc.AddTicks(intervalsPassed * interval.Ticks);
+        long elapsedTicks = (nowUtc - _settings.AnchorTimeUtc).Ticks;
+        int completedCycleCount = (int)(elapsedTicks / interval.Ticks);
+        return Math.Max(0, completedCycleCount);
     }
 
-    private DateTimeOffset GetFirstDueAfter(DateTimeOffset nowUtc)
+    private DateTimeOffset GetNextReminderUtc(TimeSpan interval, int completedCycleCount)
     {
-        TimeSpan interval = GetInterval();
-        DateTimeOffset firstDueUtc = _settings.AnchorTimeUtc.Add(interval);
-
-        if (nowUtc < firstDueUtc)
-        {
-            return firstDueUtc;
-        }
-
-        long elapsedTicks = (nowUtc - firstDueUtc).Ticks;
-        long intervalsPassed = elapsedTicks / interval.Ticks;
-
-        return firstDueUtc.AddTicks((intervalsPassed + 1) * interval.Ticks);
+        return _settings.AnchorTimeUtc.AddTicks((completedCycleCount + 1L) * interval.Ticks);
     }
 
     private TimeSpan GetInterval()
     {
         return TimeSpan.FromMinutes(Math.Max(1, _settings.IntervalMinutes));
+    }
+
+    private void ResetRuntimeState()
+    {
+        _wasReminderActive = false;
+        _lastEscalationLevel = 0;
     }
 }

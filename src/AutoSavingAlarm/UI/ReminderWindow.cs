@@ -9,16 +9,21 @@ internal sealed class ReminderWindow : Form
     private readonly Label _intervalLabel;
     private readonly Label _currentCycleLabel;
     private readonly Label _nextCycleLabel;
+    private readonly Label _statusLabel;
+    private readonly Label _modeLabel;
     private readonly Label _countdownLabel;
     private readonly Button _acknowledgeButton;
     private readonly Button _pauseButton;
     private readonly Button _settingsButton;
+    private readonly System.Windows.Forms.Timer _attentionTimer;
     private bool _allowClose;
+    private int _currentEscalationLevel;
+    private bool _attentionPulseOn;
 
     public ReminderWindow()
     {
         Text = "AutoSavingAlarm";
-        AutoScaleMode = AutoScaleMode.Font;
+        AutoScaleMode = AutoScaleMode.Dpi;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
         TopMost = true;
@@ -26,16 +31,14 @@ internal sealed class ReminderWindow : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ControlBox = false;
-        ClientSize = new Size(360, 210);
-        BackColor = Color.FromArgb(255, 249, 219);
+        ClientSize = new Size(420, 252);
 
         _titleLabel = new Label
         {
             AutoSize = false,
             Dock = DockStyle.Top,
-            Height = 44,
+            Height = 46,
             Font = new Font("Microsoft YaHei UI", 15f, FontStyle.Bold),
-            ForeColor = Color.FromArgb(182, 68, 0),
             Padding = new Padding(14, 8, 14, 0),
             Text = "该保存了"
         };
@@ -43,25 +46,30 @@ internal sealed class ReminderWindow : Form
         _intervalLabel = CreateBodyLabel();
         _currentCycleLabel = CreateBodyLabel();
         _nextCycleLabel = CreateBodyLabel();
+        _statusLabel = CreateBodyLabel();
+        _modeLabel = CreateBodyLabel();
         _countdownLabel = CreateBodyLabel();
 
         _acknowledgeButton = new Button
         {
-            AutoSize = true,
-            Text = "我刚保存了"
+            AutoSize = false,
+            Size = new Size(94, 34),
+            Text = "我已保存"
         };
         _acknowledgeButton.Click += (_, _) => SaveAcknowledgedRequested?.Invoke(this, EventArgs.Empty);
 
         _pauseButton = new Button
         {
-            AutoSize = true,
+            AutoSize = false,
+            Size = new Size(94, 34),
             Text = "暂停提醒"
         };
         _pauseButton.Click += (_, _) => PauseRequested?.Invoke(this, EventArgs.Empty);
 
         _settingsButton = new Button
         {
-            AutoSize = true,
+            AutoSize = false,
+            Size = new Size(94, 34),
             Text = "打开设置"
         };
         _settingsButton.Click += (_, _) => OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
@@ -69,7 +77,7 @@ internal sealed class ReminderWindow : Form
         FlowLayoutPanel buttonPanel = new()
         {
             Dock = DockStyle.Bottom,
-            Height = 52,
+            Height = 58,
             FlowDirection = FlowDirection.RightToLeft,
             Padding = new Padding(10, 8, 10, 10),
             WrapContents = false
@@ -83,20 +91,31 @@ internal sealed class ReminderWindow : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             Padding = new Padding(12, 6, 12, 0),
-            RowCount = 4
+            RowCount = 6
         };
-        bodyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        bodyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        bodyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        bodyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        for (int i = 0; i < 6; i++)
+        {
+            bodyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
+        }
+
         bodyPanel.Controls.Add(_intervalLabel, 0, 0);
         bodyPanel.Controls.Add(_currentCycleLabel, 0, 1);
         bodyPanel.Controls.Add(_nextCycleLabel, 0, 2);
-        bodyPanel.Controls.Add(_countdownLabel, 0, 3);
+        bodyPanel.Controls.Add(_statusLabel, 0, 3);
+        bodyPanel.Controls.Add(_modeLabel, 0, 4);
+        bodyPanel.Controls.Add(_countdownLabel, 0, 5);
+
+        _attentionTimer = new System.Windows.Forms.Timer
+        {
+            Interval = 450
+        };
+        _attentionTimer.Tick += AttentionTimer_Tick;
 
         Controls.Add(bodyPanel);
         Controls.Add(buttonPanel);
         Controls.Add(_titleLabel);
+
+        ApplyEscalationPalette(1);
     }
 
     public event EventHandler? SaveAcknowledgedRequested;
@@ -111,16 +130,29 @@ internal sealed class ReminderWindow : Form
 
         _intervalLabel.Text = $"提醒间隔：{settings.IntervalMinutes} 分钟";
         _currentCycleLabel.Text = snapshot.CurrentReminderDueUtc.HasValue
-            ? $"当前周期：{FormatLocalTime(snapshot.CurrentReminderDueUtc.Value)}"
-            : "当前周期：--";
+            ? $"本次提醒：{FormatLocalTime(snapshot.CurrentReminderDueUtc.Value)}"
+            : "本次提醒：--";
         _nextCycleLabel.Text = snapshot.NextReminderUtc.HasValue
-            ? $"下一周期：{FormatLocalTime(snapshot.NextReminderUtc.Value)}"
-            : "下一周期：暂停中";
+            ? $"下次提醒：{FormatLocalTime(snapshot.NextReminderUtc.Value)}"
+            : "下次提醒：暂停中";
+        _statusLabel.Text = BuildStatusText(snapshot);
+        _modeLabel.Text = settings.AcknowledgeResetsCycle
+            ? "确认策略：确认后重新计时"
+            : "确认策略：确认后保持固定周期";
         _countdownLabel.Text = snapshot.NextReminderUtc.HasValue
-            ? $"距离下一周期：{FormatRemaining(snapshot.NextReminderUtc.Value.ToLocalTime() - nowLocal)}"
-            : "距离下一周期：--";
+            ? $"剩余时间：{FormatRemaining(snapshot.NextReminderUtc.Value.ToLocalTime() - nowLocal)}"
+            : "剩余时间：--";
 
+        UpdateAttentionState(snapshot.EscalationLevel);
         PositionWindow();
+    }
+
+    public void SetReminderInactive()
+    {
+        _attentionTimer.Stop();
+        _attentionPulseOn = false;
+        _currentEscalationLevel = 0;
+        ApplyEscalationPalette(1);
     }
 
     public void PrepareForAppExit()
@@ -139,6 +171,81 @@ internal sealed class ReminderWindow : Form
         base.OnFormClosing(e);
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _attentionTimer.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void AttentionTimer_Tick(object? sender, EventArgs e)
+    {
+        _attentionPulseOn = !_attentionPulseOn;
+        ApplyEscalationPalette(_currentEscalationLevel);
+    }
+
+    private void UpdateAttentionState(int escalationLevel)
+    {
+        escalationLevel = Math.Max(1, escalationLevel);
+
+        if (_currentEscalationLevel != escalationLevel)
+        {
+            _attentionPulseOn = false;
+        }
+
+        _currentEscalationLevel = escalationLevel;
+
+        if (escalationLevel >= 3)
+        {
+            if (!_attentionTimer.Enabled)
+            {
+                _attentionTimer.Start();
+            }
+        }
+        else
+        {
+            _attentionTimer.Stop();
+            _attentionPulseOn = false;
+        }
+
+        ApplyEscalationPalette(escalationLevel);
+    }
+
+    private void ApplyEscalationPalette(int escalationLevel)
+    {
+        if (escalationLevel >= 3)
+        {
+            if (_attentionPulseOn)
+            {
+                BackColor = Color.FromArgb(255, 221, 210);
+                _titleLabel.ForeColor = Color.FromArgb(140, 17, 17);
+            }
+            else
+            {
+                BackColor = Color.FromArgb(255, 238, 232);
+                _titleLabel.ForeColor = Color.FromArgb(171, 28, 28);
+            }
+
+            _titleLabel.Text = "请立即保存";
+            return;
+        }
+
+        if (escalationLevel == 2)
+        {
+            BackColor = Color.FromArgb(255, 234, 214);
+            _titleLabel.ForeColor = Color.FromArgb(154, 63, 0);
+            _titleLabel.Text = "还没保存";
+            return;
+        }
+
+        BackColor = Color.FromArgb(255, 249, 219);
+        _titleLabel.ForeColor = Color.FromArgb(182, 68, 0);
+        _titleLabel.Text = "该保存了";
+    }
+
     private static Label CreateBodyLabel()
     {
         return new Label
@@ -147,14 +254,27 @@ internal sealed class ReminderWindow : Form
             Dock = DockStyle.Fill,
             Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Regular),
             ForeColor = Color.FromArgb(45, 45, 45),
+            AutoEllipsis = true,
             TextAlign = ContentAlignment.MiddleLeft
         };
+    }
+
+    private static string BuildStatusText(ReminderSnapshot snapshot)
+    {
+        if (snapshot.OverdueCycles <= 1)
+        {
+            return "连续未确认：1 个周期";
+        }
+
+        return $"连续未确认：{snapshot.OverdueCycles} 个周期";
     }
 
     private static string FormatLocalTime(DateTimeOffset utcTime)
     {
         DateTimeOffset localTime = utcTime.ToLocalTime();
-        return $"{localTime:yyyy-MM-dd HH:mm:ss}";
+        return localTime.Date == DateTimeOffset.Now.Date
+            ? $"{localTime:HH:mm:ss}"
+            : $"{localTime:MM-dd HH:mm:ss}";
     }
 
     private static string FormatRemaining(TimeSpan remaining)

@@ -5,6 +5,8 @@ namespace AutoSavingAlarm.UI;
 internal sealed class SettingsForm : Form
 {
     private readonly NumericUpDown _intervalNumericUpDown;
+    private readonly CheckBox _acknowledgeResetsCycleCheckBox;
+    private readonly CheckBox _soundEnabledCheckBox;
     private readonly CheckBox _startWithWindowsCheckBox;
     private readonly CheckBox _pausedCheckBox;
     private readonly ComboBox _resumePolicyComboBox;
@@ -31,9 +33,9 @@ internal sealed class SettingsForm : Form
         {
             AutoSize = true,
             Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Regular),
-            MaximumSize = new Size(440, 0),
+            MaximumSize = new Size(620, 0),
             Margin = new Padding(0, 0, 0, 14),
-            Text = "设置固定周期提醒。修改提醒间隔后，会从当前时刻重新开始计时。"
+            Text = "设置提醒间隔、确认策略和可选声音提示。修改提醒间隔后会从当前时刻重新开始计时。"
         };
 
         Label intervalLabel = CreateRowLabel("提醒间隔（分钟）");
@@ -44,6 +46,20 @@ internal sealed class SettingsForm : Form
             Value = Math.Max(1, _sourceSettings.IntervalMinutes),
             Width = 140,
             Anchor = AnchorStyles.Left
+        };
+
+        _acknowledgeResetsCycleCheckBox = new CheckBox
+        {
+            AutoSize = true,
+            Text = "确认后重新计时（点击“我已保存”后重置周期）",
+            Checked = _sourceSettings.AcknowledgeResetsCycle
+        };
+
+        _soundEnabledCheckBox = new CheckBox
+        {
+            AutoSize = true,
+            Text = "启用声音提示（升级提醒时播放系统提示音）",
+            Checked = _sourceSettings.SoundEnabled
         };
 
         Label resumePolicyLabel = CreateRowLabel("恢复策略");
@@ -109,7 +125,7 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             Margin = Padding.Empty,
-            RowCount = 4
+            RowCount = 6
         };
         contentTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         contentTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -117,12 +133,16 @@ internal sealed class SettingsForm : Form
         contentTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        contentTable.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         contentTable.Controls.Add(intervalLabel, 0, 0);
         contentTable.Controls.Add(_intervalNumericUpDown, 1, 0);
-        contentTable.Controls.Add(resumePolicyLabel, 0, 1);
-        contentTable.Controls.Add(_resumePolicyComboBox, 1, 1);
-        contentTable.Controls.Add(_startWithWindowsCheckBox, 1, 2);
-        contentTable.Controls.Add(_pausedCheckBox, 1, 3);
+        contentTable.Controls.Add(_acknowledgeResetsCycleCheckBox, 1, 1);
+        contentTable.Controls.Add(_soundEnabledCheckBox, 1, 2);
+        contentTable.Controls.Add(resumePolicyLabel, 0, 3);
+        contentTable.Controls.Add(_resumePolicyComboBox, 1, 3);
+        contentTable.Controls.Add(_startWithWindowsCheckBox, 1, 4);
+        contentTable.Controls.Add(_pausedCheckBox, 1, 5);
 
         TableLayoutPanel rootLayout = new()
         {
@@ -166,6 +186,8 @@ internal sealed class SettingsForm : Form
         SubmittedSettings = new AppSettings
         {
             IntervalMinutes = Decimal.ToInt32(_intervalNumericUpDown.Value),
+            AcknowledgeResetsCycle = _acknowledgeResetsCycleCheckBox.Checked,
+            SoundEnabled = _soundEnabledCheckBox.Checked,
             StartWithWindows = _startWithWindowsCheckBox.Checked,
             IsPaused = _pausedCheckBox.Checked,
             AnchorTimeUtc = _sourceSettings.AnchorTimeUtc,

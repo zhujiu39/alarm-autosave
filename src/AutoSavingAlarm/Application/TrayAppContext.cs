@@ -2,6 +2,7 @@ using AutoSavingAlarm.Configuration;
 using AutoSavingAlarm.Services;
 using AutoSavingAlarm.UI;
 using Microsoft.Win32;
+using System.Media;
 
 namespace AutoSavingAlarm;
 
@@ -27,6 +28,7 @@ internal sealed class TrayAppContext : ApplicationContext
     private ReminderScheduler _scheduler;
     private readonly bool _hasSavedConfig;
     private bool _isExiting;
+    private DateTimeOffset? _lastEscalatedSoundAtUtc;
 
     public TrayAppContext(SettingsStore settingsStore, AutostartService autostartService)
     {
@@ -45,7 +47,7 @@ internal sealed class TrayAppContext : ApplicationContext
         _trayMenu = new ContextMenuStrip();
         _startResumeMenuItem = new ToolStripMenuItem("立即开始/恢复");
         _pauseMenuItem = new ToolStripMenuItem("暂停提醒");
-        _acknowledgeMenuItem = new ToolStripMenuItem("我刚保存了");
+        _acknowledgeMenuItem = new ToolStripMenuItem("我已保存");
         _settingsMenuItem = new ToolStripMenuItem("设置");
         _autostartMenuItem = new ToolStripMenuItem("开机自启动");
         _exitMenuItem = new ToolStripMenuItem("退出");
@@ -139,14 +141,16 @@ internal sealed class TrayAppContext : ApplicationContext
             return;
         }
 
-        ReminderSnapshot snapshot = _scheduler.Evaluate(DateTimeOffset.UtcNow);
+        DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+        ReminderSnapshot snapshot = _scheduler.Evaluate(nowUtc);
         UpdateTrayStatus(snapshot);
         UpdateReminderWindow(snapshot);
+        HandleReminderSound(snapshot, nowUtc);
 
-        if (showBalloonTip && snapshot.ReminderTriggered)
+        if (showBalloonTip && (snapshot.ReminderTriggered || snapshot.EscalationAdvanced))
         {
-            _notifyIcon.BalloonTipTitle = "该保存了";
-            _notifyIcon.BalloonTipText = "到固定保存时间了。点击托盘或提醒窗都可以处理。";
+            _notifyIcon.BalloonTipTitle = BuildReminderTitle(snapshot.EscalationLevel);
+            _notifyIcon.BalloonTipText = BuildReminderBalloonText(snapshot);
             _notifyIcon.ShowBalloonTip(3000);
         }
     }
@@ -161,7 +165,7 @@ internal sealed class TrayAppContext : ApplicationContext
                 break;
             case ReminderState.Reminder:
                 _notifyIcon.Icon = _alertIcon;
-                _notifyIcon.Text = "AutoSavingAlarm - 该保存了";
+                _notifyIcon.Text = BuildReminderNotifyText(snapshot);
                 break;
             default:
                 _notifyIcon.Icon = _pausedIcon;
@@ -179,6 +183,7 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         if (snapshot.State != ReminderState.Reminder)
         {
+            _reminderWindow.SetReminderInactive();
             if (_reminderWindow.Visible)
             {
                 _reminderWindow.Hide();
@@ -187,6 +192,11 @@ internal sealed class TrayAppContext : ApplicationContext
             return;
         }
 
+        bool shouldActivateWindow =
+            !_reminderWindow.Visible ||
+            snapshot.ReminderTriggered ||
+            snapshot.EscalationAdvanced;
+
         _reminderWindow.UpdatePresentation(snapshot, _settings);
 
         if (!_reminderWindow.Visible)
@@ -194,7 +204,11 @@ internal sealed class TrayAppContext : ApplicationContext
             _reminderWindow.Show();
         }
 
-        _reminderWindow.Activate();
+        if (shouldActivateWindow)
+        {
+            _reminderWindow.BringToFront();
+            _reminderWindow.Activate();
+        }
     }
 
     private void StartOrResume()
@@ -279,6 +293,8 @@ internal sealed class TrayAppContext : ApplicationContext
 
         AppSettings updatedSettings = _settings.Clone();
         updatedSettings.IntervalMinutes = requestedSettings.IntervalMinutes;
+        updatedSettings.AcknowledgeResetsCycle = requestedSettings.AcknowledgeResetsCycle;
+        updatedSettings.SoundEnabled = requestedSettings.SoundEnabled;
         updatedSettings.StartWithWindows = requestedSettings.StartWithWindows;
         updatedSettings.IsPaused = requestedSettings.IsPaused;
         updatedSettings.ResumePolicy = requestedSettings.ResumePolicy;
@@ -389,5 +405,67 @@ internal sealed class TrayAppContext : ApplicationContext
 
         string nextTime = nextReminderUtc.Value.ToLocalTime().ToString("HH:mm");
         return $"AutoSavingAlarm - {stateText} - 下次 {nextTime}";
+    }
+
+    private void HandleReminderSound(ReminderSnapshot snapshot, DateTimeOffset nowUtc)
+    {
+        if (!_settings.SoundEnabled || snapshot.State != ReminderState.Reminder)
+        {
+            _lastEscalatedSoundAtUtc = null;
+            return;
+        }
+
+        if (snapshot.EscalationLevel >= 3)
+        {
+            if (snapshot.ReminderTriggered ||
+                snapshot.EscalationAdvanced ||
+                !_lastEscalatedSoundAtUtc.HasValue ||
+                nowUtc - _lastEscalatedSoundAtUtc.Value >= TimeSpan.FromSeconds(30))
+            {
+                SystemSounds.Hand.Play();
+                _lastEscalatedSoundAtUtc = nowUtc;
+            }
+
+            return;
+        }
+
+        if (snapshot.EscalationLevel == 2 && snapshot.EscalationAdvanced)
+        {
+            SystemSounds.Exclamation.Play();
+            _lastEscalatedSoundAtUtc = nowUtc;
+            return;
+        }
+
+        _lastEscalatedSoundAtUtc = null;
+    }
+
+    private static string BuildReminderTitle(int escalationLevel)
+    {
+        return escalationLevel switch
+        {
+            >= 3 => "请立即保存",
+            2 => "还没保存",
+            _ => "该保存了"
+        };
+    }
+
+    private static string BuildReminderBalloonText(ReminderSnapshot snapshot)
+    {
+        if (snapshot.OverdueCycles <= 1)
+        {
+            return "到保存时间了。点击“我已保存”可结束当前提醒。";
+        }
+
+        return $"已连续 {snapshot.OverdueCycles} 个周期未确认，请尽快保存。";
+    }
+
+    private static string BuildReminderNotifyText(ReminderSnapshot snapshot)
+    {
+        if (snapshot.OverdueCycles <= 1)
+        {
+            return "AutoSavingAlarm - 该保存了";
+        }
+
+        return $"AutoSavingAlarm - 已连续错过 {snapshot.OverdueCycles} 次";
     }
 }

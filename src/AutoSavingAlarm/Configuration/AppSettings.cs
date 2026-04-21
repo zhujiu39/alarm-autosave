@@ -8,6 +8,10 @@ internal sealed class AppSettings
 
     public bool IsPaused { get; set; }
 
+    public bool AcknowledgeResetsCycle { get; set; } = true;
+
+    public bool SoundEnabled { get; set; }
+
     public DateTimeOffset AnchorTimeUtc { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? LastAcknowledgedAtUtc { get; set; }
@@ -19,6 +23,7 @@ internal sealed class AppSettings
         return new AppSettings
         {
             AnchorTimeUtc = nowUtc,
+            AcknowledgeResetsCycle = true,
             ResumePolicy = ResumePolicy.ResetOnResume
         };
     }
@@ -30,6 +35,8 @@ internal sealed class AppSettings
             IntervalMinutes = IntervalMinutes,
             StartWithWindows = StartWithWindows,
             IsPaused = IsPaused,
+            AcknowledgeResetsCycle = AcknowledgeResetsCycle,
+            SoundEnabled = SoundEnabled,
             AnchorTimeUtc = AnchorTimeUtc,
             LastAcknowledgedAtUtc = LastAcknowledgedAtUtc,
             ResumePolicy = ResumePolicy
