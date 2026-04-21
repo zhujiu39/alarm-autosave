@@ -12,7 +12,9 @@ internal sealed class ReminderWindow : Form
     private readonly Label _statusLabel;
     private readonly Label _modeLabel;
     private readonly Label _countdownLabel;
+    private readonly Label _noticeLabel;
     private readonly Button _acknowledgeButton;
+    private readonly Button _snoozeButton;
     private readonly Button _pauseButton;
     private readonly Button _settingsButton;
     private readonly System.Windows.Forms.Timer _attentionTimer;
@@ -31,7 +33,7 @@ internal sealed class ReminderWindow : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ControlBox = false;
-        ClientSize = new Size(420, 252);
+        ClientSize = new Size(560, 296);
 
         _titleLabel = new Label
         {
@@ -49,19 +51,28 @@ internal sealed class ReminderWindow : Form
         _statusLabel = CreateBodyLabel();
         _modeLabel = CreateBodyLabel();
         _countdownLabel = CreateBodyLabel();
+        _noticeLabel = CreateBodyLabel();
 
         _acknowledgeButton = new Button
         {
             AutoSize = false,
-            Size = new Size(94, 34),
+            Size = new Size(102, 34),
             Text = "我已保存"
         };
         _acknowledgeButton.Click += (_, _) => SaveAcknowledgedRequested?.Invoke(this, EventArgs.Empty);
 
+        _snoozeButton = new Button
+        {
+            AutoSize = false,
+            Size = new Size(102, 34),
+            Text = "稍后提醒"
+        };
+        _snoozeButton.Click += (_, _) => SnoozeRequested?.Invoke(this, EventArgs.Empty);
+
         _pauseButton = new Button
         {
             AutoSize = false,
-            Size = new Size(94, 34),
+            Size = new Size(102, 34),
             Text = "暂停提醒"
         };
         _pauseButton.Click += (_, _) => PauseRequested?.Invoke(this, EventArgs.Empty);
@@ -69,7 +80,7 @@ internal sealed class ReminderWindow : Form
         _settingsButton = new Button
         {
             AutoSize = false,
-            Size = new Size(94, 34),
+            Size = new Size(102, 34),
             Text = "打开设置"
         };
         _settingsButton.Click += (_, _) => OpenSettingsRequested?.Invoke(this, EventArgs.Empty);
@@ -77,13 +88,14 @@ internal sealed class ReminderWindow : Form
         FlowLayoutPanel buttonPanel = new()
         {
             Dock = DockStyle.Bottom,
-            Height = 58,
+            Height = 60,
             FlowDirection = FlowDirection.RightToLeft,
             Padding = new Padding(10, 8, 10, 10),
             WrapContents = false
         };
         buttonPanel.Controls.Add(_settingsButton);
         buttonPanel.Controls.Add(_pauseButton);
+        buttonPanel.Controls.Add(_snoozeButton);
         buttonPanel.Controls.Add(_acknowledgeButton);
 
         TableLayoutPanel bodyPanel = new()
@@ -91,9 +103,9 @@ internal sealed class ReminderWindow : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             Padding = new Padding(12, 6, 12, 0),
-            RowCount = 6
+            RowCount = 7
         };
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 7; i++)
         {
             bodyPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 29));
         }
@@ -104,6 +116,7 @@ internal sealed class ReminderWindow : Form
         bodyPanel.Controls.Add(_statusLabel, 0, 3);
         bodyPanel.Controls.Add(_modeLabel, 0, 4);
         bodyPanel.Controls.Add(_countdownLabel, 0, 5);
+        bodyPanel.Controls.Add(_noticeLabel, 0, 6);
 
         _attentionTimer = new System.Windows.Forms.Timer
         {
@@ -120,6 +133,8 @@ internal sealed class ReminderWindow : Form
 
     public event EventHandler? SaveAcknowledgedRequested;
 
+    public event EventHandler? SnoozeRequested;
+
     public event EventHandler? PauseRequested;
 
     public event EventHandler? OpenSettingsRequested;
@@ -133,15 +148,18 @@ internal sealed class ReminderWindow : Form
             ? $"本次提醒：{FormatLocalTime(snapshot.CurrentReminderDueUtc.Value)}"
             : "本次提醒：--";
         _nextCycleLabel.Text = snapshot.NextReminderUtc.HasValue
-            ? $"下次提醒：{FormatLocalTime(snapshot.NextReminderUtc.Value)}"
-            : "下次提醒：暂停中";
+            ? $"下次周期：{FormatLocalTime(snapshot.NextReminderUtc.Value)}"
+            : "下次周期：暂停中";
         _statusLabel.Text = BuildStatusText(snapshot);
         _modeLabel.Text = settings.AcknowledgeResetsCycle
             ? "确认策略：确认后重新计时"
             : "确认策略：确认后保持固定周期";
         _countdownLabel.Text = snapshot.NextReminderUtc.HasValue
-            ? $"剩余时间：{FormatRemaining(snapshot.NextReminderUtc.Value.ToLocalTime() - nowLocal)}"
-            : "剩余时间：--";
+            ? $"距离下一周期：{FormatRemaining(snapshot.NextReminderUtc.Value.ToLocalTime() - nowLocal)}"
+            : "距离下一周期：--";
+        _noticeLabel.Text = snapshot.ResumedFromSnooze
+            ? "状态提示：已从稍后提醒恢复，请尽快保存。"
+            : $"状态提示：可稍后 {Math.Max(1, settings.DefaultSnoozeMinutes)} 分钟后再提醒。";
 
         UpdateAttentionState(snapshot.EscalationLevel);
         PositionWindow();
@@ -261,12 +279,9 @@ internal sealed class ReminderWindow : Form
 
     private static string BuildStatusText(ReminderSnapshot snapshot)
     {
-        if (snapshot.OverdueCycles <= 1)
-        {
-            return "连续未确认：1 个周期";
-        }
-
-        return $"连续未确认：{snapshot.OverdueCycles} 个周期";
+        return snapshot.OverdueCycles <= 1
+            ? $"连续未确认：1 个周期 | 当前等级：Level {Math.Max(1, snapshot.EscalationLevel)}"
+            : $"连续未确认：{snapshot.OverdueCycles} 个周期 | 当前等级：Level {Math.Max(1, snapshot.EscalationLevel)}";
     }
 
     private static string FormatLocalTime(DateTimeOffset utcTime)

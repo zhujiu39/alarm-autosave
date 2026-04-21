@@ -10,11 +10,15 @@ internal sealed class TrayAppContext : ApplicationContext
 {
     private readonly SettingsStore _settingsStore;
     private readonly AutostartService _autostartService;
+    private readonly WorkScheduleEvaluator _workScheduleEvaluator;
+    private readonly UserIdleMonitor _idleMonitor;
+    private readonly SettingsLoadResult _loadResult;
     private readonly NotifyIcon _notifyIcon;
     private readonly ContextMenuStrip _trayMenu;
     private readonly ToolStripMenuItem _startResumeMenuItem;
     private readonly ToolStripMenuItem _pauseMenuItem;
     private readonly ToolStripMenuItem _acknowledgeMenuItem;
+    private readonly ToolStripMenuItem _snoozeMenuItem;
     private readonly ToolStripMenuItem _settingsMenuItem;
     private readonly ToolStripMenuItem _autostartMenuItem;
     private readonly ToolStripMenuItem _exitMenuItem;
@@ -24,6 +28,7 @@ internal sealed class TrayAppContext : ApplicationContext
     private readonly Icon _normalIcon;
     private readonly Icon _alertIcon;
     private readonly Icon _pausedIcon;
+    private readonly Icon _snoozedIcon;
     private AppSettings _settings;
     private ReminderScheduler _scheduler;
     private readonly bool _hasSavedConfig;
@@ -34,20 +39,24 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         _settingsStore = settingsStore;
         _autostartService = autostartService;
+        _workScheduleEvaluator = new WorkScheduleEvaluator();
+        _idleMonitor = new UserIdleMonitor();
 
-        (AppSettings settings, bool hasSavedConfig) = _settingsStore.Load();
-        _settings = settings;
-        _scheduler = new ReminderScheduler(_settings);
-        _hasSavedConfig = hasSavedConfig;
+        _loadResult = _settingsStore.Load();
+        _settings = _loadResult.Settings;
+        _scheduler = new ReminderScheduler(_settings, _workScheduleEvaluator);
+        _hasSavedConfig = _loadResult.Exists;
 
         _normalIcon = IconFactory.CreateStatusIcon(Color.FromArgb(54, 148, 92));
         _alertIcon = IconFactory.CreateStatusIcon(Color.FromArgb(220, 91, 41));
         _pausedIcon = IconFactory.CreateStatusIcon(Color.FromArgb(123, 123, 123));
+        _snoozedIcon = IconFactory.CreateStatusIcon(Color.FromArgb(72, 122, 204));
 
         _trayMenu = new ContextMenuStrip();
         _startResumeMenuItem = new ToolStripMenuItem("立即开始/恢复");
         _pauseMenuItem = new ToolStripMenuItem("暂停提醒");
         _acknowledgeMenuItem = new ToolStripMenuItem("我已保存");
+        _snoozeMenuItem = new ToolStripMenuItem(BuildSnoozeMenuText(_settings.DefaultSnoozeMinutes));
         _settingsMenuItem = new ToolStripMenuItem("设置");
         _autostartMenuItem = new ToolStripMenuItem("开机自启动");
         _exitMenuItem = new ToolStripMenuItem("退出");
@@ -55,6 +64,7 @@ internal sealed class TrayAppContext : ApplicationContext
         _startResumeMenuItem.Click += (_, _) => StartOrResume();
         _pauseMenuItem.Click += (_, _) => PauseReminders();
         _acknowledgeMenuItem.Click += (_, _) => AcknowledgeReminder();
+        _snoozeMenuItem.Click += (_, _) => SnoozeReminder();
         _settingsMenuItem.Click += (_, _) => OpenSettings(isFirstRun: false);
         _autostartMenuItem.Click += (_, _) => ToggleAutostart();
         _exitMenuItem.Click += (_, _) => ExitApplication();
@@ -64,6 +74,7 @@ internal sealed class TrayAppContext : ApplicationContext
             _startResumeMenuItem,
             _pauseMenuItem,
             _acknowledgeMenuItem,
+            _snoozeMenuItem,
             new ToolStripSeparator(),
             _settingsMenuItem,
             _autostartMenuItem,
@@ -82,6 +93,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
         _reminderWindow = new ReminderWindow();
         _reminderWindow.SaveAcknowledgedRequested += (_, _) => AcknowledgeReminder();
+        _reminderWindow.SnoozeRequested += (_, _) => SnoozeReminder();
         _reminderWindow.PauseRequested += (_, _) => PauseReminders();
         _reminderWindow.OpenSettingsRequested += (_, _) => OpenSettings(isFirstRun: false);
 
@@ -130,6 +142,7 @@ internal sealed class TrayAppContext : ApplicationContext
         _normalIcon.Dispose();
         _alertIcon.Dispose();
         _pausedIcon.Dispose();
+        _snoozedIcon.Dispose();
 
         base.ExitThreadCore();
     }
@@ -142,7 +155,14 @@ internal sealed class TrayAppContext : ApplicationContext
         }
 
         DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
-        ReminderSnapshot snapshot = _scheduler.Evaluate(nowUtc);
+        bool isIdle = _idleMonitor.IsIdle(_settings);
+        ReminderSnapshot snapshot = _scheduler.Evaluate(nowUtc, isIdle);
+
+        if (snapshot.SettingsChanged)
+        {
+            SaveSettingsOrReport();
+        }
+
         UpdateTrayStatus(snapshot);
         UpdateReminderWindow(snapshot);
         HandleReminderSound(snapshot, nowUtc);
@@ -167,15 +187,29 @@ internal sealed class TrayAppContext : ApplicationContext
                 _notifyIcon.Icon = _alertIcon;
                 _notifyIcon.Text = BuildReminderNotifyText(snapshot);
                 break;
+            case ReminderState.Snoozed:
+                _notifyIcon.Icon = _snoozedIcon;
+                _notifyIcon.Text = BuildSnoozedNotifyText(snapshot.SnoozeUntilUtc);
+                break;
+            case ReminderState.SuppressedBySchedule:
+                _notifyIcon.Icon = _pausedIcon;
+                _notifyIcon.Text = "AutoSavingAlarm - 非工作时段";
+                break;
+            case ReminderState.SuppressedByIdle:
+                _notifyIcon.Icon = _pausedIcon;
+                _notifyIcon.Text = "AutoSavingAlarm - 空闲中已挂起";
+                break;
             default:
                 _notifyIcon.Icon = _pausedIcon;
-                _notifyIcon.Text = "AutoSavingAlarm - 已暂停";
+                _notifyIcon.Text = "AutoSavingAlarm - 已手动暂停";
                 break;
         }
 
         _startResumeMenuItem.Text = _settings.IsPaused ? "立即开始/恢复" : "重新开始计时";
         _pauseMenuItem.Enabled = !_settings.IsPaused;
         _acknowledgeMenuItem.Enabled = snapshot.State == ReminderState.Reminder;
+        _snoozeMenuItem.Enabled = snapshot.State == ReminderState.Reminder;
+        _snoozeMenuItem.Text = BuildSnoozeMenuText(_settings.DefaultSnoozeMinutes);
         _autostartMenuItem.Checked = _settings.StartWithWindows;
     }
 
@@ -195,7 +229,8 @@ internal sealed class TrayAppContext : ApplicationContext
         bool shouldActivateWindow =
             !_reminderWindow.Visible ||
             snapshot.ReminderTriggered ||
-            snapshot.EscalationAdvanced;
+            snapshot.EscalationAdvanced ||
+            snapshot.ResumedFromSnooze;
 
         _reminderWindow.UpdatePresentation(snapshot, _settings);
 
@@ -242,6 +277,13 @@ internal sealed class TrayAppContext : ApplicationContext
         RefreshState(showBalloonTip: false);
     }
 
+    private void SnoozeReminder()
+    {
+        _scheduler.Snooze(DateTimeOffset.UtcNow, _settings.DefaultSnoozeMinutes);
+        SaveSettingsOrReport();
+        RefreshState(showBalloonTip: false);
+    }
+
     private void ToggleAutostart()
     {
         bool previousValue = _settings.StartWithWindows;
@@ -267,7 +309,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private void OpenSettings(bool isFirstRun)
     {
-        using SettingsForm settingsForm = new(_settings);
+        using SettingsForm settingsForm = new(_settings, _settingsStore);
         settingsForm.Activate();
         DialogResult dialogResult = settingsForm.ShowDialog();
 
@@ -287,33 +329,40 @@ internal sealed class TrayAppContext : ApplicationContext
     private void ApplySettings(AppSettings requestedSettings, bool isFirstRun)
     {
         DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
-        bool intervalChanged = requestedSettings.IntervalMinutes != _settings.IntervalMinutes;
         bool wasPaused = _settings.IsPaused;
         bool previousStartWithWindows = _settings.StartWithWindows;
+        bool timingSettingsChanged = HaveTimingSettingsChanged(_settings, requestedSettings);
 
         AppSettings updatedSettings = _settings.Clone();
         updatedSettings.IntervalMinutes = requestedSettings.IntervalMinutes;
         updatedSettings.AcknowledgeResetsCycle = requestedSettings.AcknowledgeResetsCycle;
         updatedSettings.SoundEnabled = requestedSettings.SoundEnabled;
+        updatedSettings.DefaultSnoozeMinutes = requestedSettings.DefaultSnoozeMinutes;
         updatedSettings.StartWithWindows = requestedSettings.StartWithWindows;
         updatedSettings.IsPaused = requestedSettings.IsPaused;
         updatedSettings.ResumePolicy = requestedSettings.ResumePolicy;
+        updatedSettings.WorkScheduleEnabled = requestedSettings.WorkScheduleEnabled;
+        updatedSettings.WorkdayMask = requestedSettings.WorkdayMask;
+        updatedSettings.WorkdayStartLocalTime = requestedSettings.WorkdayStartLocalTime;
+        updatedSettings.WorkdayEndLocalTime = requestedSettings.WorkdayEndLocalTime;
+        updatedSettings.IdleDetectionEnabled = requestedSettings.IdleDetectionEnabled;
+        updatedSettings.IdleThresholdMinutes = requestedSettings.IdleThresholdMinutes;
+        updatedSettings.SnoozeUntilUtc = null;
 
         _settings = updatedSettings;
-        _scheduler = new ReminderScheduler(_settings);
-
-        if (isFirstRun || intervalChanged)
-        {
-            _scheduler.ResetAnchor(nowUtc);
-        }
-        else if (!requestedSettings.IsPaused && wasPaused)
-        {
-            _scheduler.Resume(nowUtc);
-        }
+        _scheduler = new ReminderScheduler(_settings, _workScheduleEvaluator);
 
         if (requestedSettings.IsPaused)
         {
             _scheduler.Pause();
+        }
+        else if (isFirstRun || timingSettingsChanged)
+        {
+            _scheduler.ResetAnchor(nowUtc);
+        }
+        else if (wasPaused)
+        {
+            _scheduler.Resume(nowUtc);
         }
 
         try
@@ -336,7 +385,7 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private void TrySyncAutostartWithSettings()
     {
-        if (!_hasSavedConfig)
+        if (!_hasSavedConfig || _loadResult.Source != SettingsLoadSource.Primary)
         {
             return;
         }
@@ -390,10 +439,34 @@ internal sealed class TrayAppContext : ApplicationContext
         if (_hasSavedConfig)
         {
             RefreshState(showBalloonTip: true);
+            ShowStartupNoticeIfNeeded();
             return;
         }
 
         OpenSettings(isFirstRun: true);
+    }
+
+    private void ShowStartupNoticeIfNeeded()
+    {
+        if (string.IsNullOrWhiteSpace(_loadResult.Notice))
+        {
+            return;
+        }
+
+        _notifyIcon.BalloonTipTitle = "AutoSavingAlarm";
+        _notifyIcon.BalloonTipText = _loadResult.Notice;
+        _notifyIcon.ShowBalloonTip(4000);
+    }
+
+    private static bool HaveTimingSettingsChanged(AppSettings currentSettings, AppSettings requestedSettings)
+    {
+        return currentSettings.IntervalMinutes != requestedSettings.IntervalMinutes ||
+               currentSettings.WorkScheduleEnabled != requestedSettings.WorkScheduleEnabled ||
+               currentSettings.WorkdayMask != requestedSettings.WorkdayMask ||
+               currentSettings.WorkdayStartLocalTime != requestedSettings.WorkdayStartLocalTime ||
+               currentSettings.WorkdayEndLocalTime != requestedSettings.WorkdayEndLocalTime ||
+               currentSettings.IdleDetectionEnabled != requestedSettings.IdleDetectionEnabled ||
+               currentSettings.IdleThresholdMinutes != requestedSettings.IdleThresholdMinutes;
     }
 
     private static string BuildNotifyText(string stateText, DateTimeOffset? nextReminderUtc)
@@ -405,6 +478,21 @@ internal sealed class TrayAppContext : ApplicationContext
 
         string nextTime = nextReminderUtc.Value.ToLocalTime().ToString("HH:mm");
         return $"AutoSavingAlarm - {stateText} - 下次 {nextTime}";
+    }
+
+    private static string BuildSnoozeMenuText(int minutes)
+    {
+        return $"稍后提醒 {Math.Max(1, minutes)} 分钟";
+    }
+
+    private static string BuildSnoozedNotifyText(DateTimeOffset? snoozeUntilUtc)
+    {
+        if (!snoozeUntilUtc.HasValue)
+        {
+            return "AutoSavingAlarm - 已稍后提醒";
+        }
+
+        return $"AutoSavingAlarm - 已稍后至 {snoozeUntilUtc.Value.ToLocalTime():HH:mm}";
     }
 
     private void HandleReminderSound(ReminderSnapshot snapshot, DateTimeOffset nowUtc)
@@ -419,6 +507,7 @@ internal sealed class TrayAppContext : ApplicationContext
         {
             if (snapshot.ReminderTriggered ||
                 snapshot.EscalationAdvanced ||
+                snapshot.ResumedFromSnooze ||
                 !_lastEscalatedSoundAtUtc.HasValue ||
                 nowUtc - _lastEscalatedSoundAtUtc.Value >= TimeSpan.FromSeconds(30))
             {
@@ -429,7 +518,7 @@ internal sealed class TrayAppContext : ApplicationContext
             return;
         }
 
-        if (snapshot.EscalationLevel == 2 && snapshot.EscalationAdvanced)
+        if (snapshot.EscalationLevel == 2 && (snapshot.EscalationAdvanced || snapshot.ResumedFromSnooze))
         {
             SystemSounds.Exclamation.Play();
             _lastEscalatedSoundAtUtc = nowUtc;
@@ -451,9 +540,16 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private static string BuildReminderBalloonText(ReminderSnapshot snapshot)
     {
+        if (snapshot.ResumedFromSnooze)
+        {
+            return snapshot.OverdueCycles <= 1
+                ? "稍后提醒已结束，请记得保存。"
+                : $"稍后提醒已结束，当前已连续 {snapshot.OverdueCycles} 个周期未确认。";
+        }
+
         if (snapshot.OverdueCycles <= 1)
         {
-            return "到保存时间了。点击“我已保存”可结束当前提醒。";
+            return "到保存时间了。点击“我已保存”或使用“稍后提醒”处理当前提醒。";
         }
 
         return $"已连续 {snapshot.OverdueCycles} 个周期未确认，请尽快保存。";
