@@ -22,7 +22,7 @@
 </div>
 
 > [!TIP]
-> 如果你只是想直接用，不想研究 .NET 运行时，直接下载 `AutoSavingAlarm-v1.1.0-self-contained-win-x64.zip`。
+> 如果你只是想直接用，不想研究 .NET 运行时，直接下载 `AutoSavingAlarm-v1.2.0-self-contained-win-x64.zip`。
 
 ## ✨ 一眼看懂
 
@@ -114,9 +114,9 @@ Release 页面：
 
 | 你的情况 | 建议下载 | 说明 |
 | --- | --- | --- |
-| 我只想下载后直接运行 | `AutoSavingAlarm-v1.1.0-self-contained-win-x64.zip` | 自带 Runtime，最省事，体积较大 |
-| 我已经装过 `.NET 10 Windows Desktop Runtime` | `AutoSavingAlarm-v1.1.0-runtime-dependent-win-x64.zip` | 不自带 Runtime，体积较小 |
-| 我不确定自己有没有装运行时 | `AutoSavingAlarm-v1.1.0-self-contained-win-x64.zip` | 这是默认推荐版本 |
+| 我只想下载后直接运行 | `AutoSavingAlarm-v1.2.0-self-contained-win-x64.zip` | 自带 Runtime，最省事，体积较大 |
+| 我已经装过 `.NET 10 Windows Desktop Runtime` | `AutoSavingAlarm-v1.2.0-runtime-dependent-win-x64.zip` | 不自带 Runtime，体积较小 |
+| 我不确定自己有没有装运行时 | `AutoSavingAlarm-v1.2.0-self-contained-win-x64.zip` | 这是默认推荐版本 |
 
 ## ⚡ 快速开始
 
@@ -329,7 +329,7 @@ Release 页面：
 
 ## 📝 更新日志
 
-### v1.2.0（当前仓库开发中）
+### v1.2.0
 
 - 新增“稍后提醒”，支持按默认时长延后当前提醒
 - 新增工作时段设置，可限制仅在指定星期和时间段内提醒
