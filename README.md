@@ -22,7 +22,7 @@
 </div>
 
 > [!TIP]
-> 如果你只是想直接用，不想研究 .NET 运行时，直接下载 `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip`。
+> 如果你只是想直接用，不想研究 .NET 运行时，直接下载 `AutoSavingAlarm-v1.1.0-self-contained-win-x64.zip`。
 
 ## ✨ 一眼看懂
 
@@ -104,9 +104,9 @@ Release 页面：
 
 | 你的情况 | 建议下载 | 说明 |
 | --- | --- | --- |
-| 我只想下载后直接运行 | `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip` | 自带 Runtime，最省事，体积较大 |
-| 我已经装过 `.NET 10 Windows Desktop Runtime` | `AutoSavingAlarm-v1.0.0-runtime-dependent-win-x64.zip` | 不自带 Runtime，体积较小 |
-| 我不确定自己有没有装运行时 | `AutoSavingAlarm-v1.0.0-self-contained-win-x64.zip` | 这是默认推荐版本 |
+| 我只想下载后直接运行 | `AutoSavingAlarm-v1.1.0-self-contained-win-x64.zip` | 自带 Runtime，最省事，体积较大 |
+| 我已经装过 `.NET 10 Windows Desktop Runtime` | `AutoSavingAlarm-v1.1.0-runtime-dependent-win-x64.zip` | 不自带 Runtime，体积较小 |
+| 我不确定自己有没有装运行时 | `AutoSavingAlarm-v1.1.0-self-contained-win-x64.zip` | 这是默认推荐版本 |
 
 ## ⚡ 快速开始
 
@@ -265,7 +265,7 @@ Release 页面：
 
 ## 📝 更新日志
 
-### Unreleased
+### v1.1.0
 
 - 新增“确认后重置周期”开关，支持固定周期和闭环重计时两种模式
 - 新增连续未确认升级提醒，包含更明显的提示窗表现和可选声音提示
